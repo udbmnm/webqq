@@ -1,6 +1,8 @@
 // webQQ.go
 /*
  *quanql:本程序来自网络！
+ *too many errors
+ *------------------------
  *GO语言讨论群:102319854
  *GO语言官网:www.golang.org
  *作者: 不死爬虫
@@ -24,9 +26,9 @@ import (
 	"encoding/hex"
 	"fmt"
 	"hash"
-	"http"
 	"io/ioutil"
 	"net"
+	"net/http"
 	"os"
 	"regexp"
 	"strings"
@@ -43,10 +45,12 @@ var psessionid string            //第二次登陆返回的参数
 var refer string
 
 func main() {
+	fmt.Println("NOTE:(windows user)")
 	fmt.Println("If you run this First time,Please run 'chcp 65001' in then cmd ,then set front 'Lucida Console'")
 	fmt.Println("And run 'chcp 936 to back default'")
+
 	if len(os.Args) != 3 {
-		fmt.Println("Usage: ", os.Args[0], "365183440 pass")
+		fmt.Println("Usage: ", os.Args[0], "QQnumber password")
 		in := bufio.NewReader(os.Stdin)
 		line, _ := in.ReadString('\n')
 		qq = strings.Split(line, " ")[0]
@@ -56,7 +60,8 @@ func main() {
 		qq = os.Args[1]
 		pass = os.Args[2]
 	}
-	fmt.Println("qq:" + qq + "pass:" + pass)
+
+	fmt.Println("qq:" + qq + "passwd:" + pass)
 	refer = "http://web2-b.qq.com/proxy.html"
 	s := getUrl("http://ptlogin2.qq.com:80/check?appid=1003903&uin="+qq, refer)
 	var r = string(s[0:len(s)])
@@ -313,9 +318,9 @@ a2:
 	return result[0:len(result)]
 }
 
-func checkError(err os.Error) {
+func checkError(err error) {
 	if err != nil {
-		fmt.Println("Fatal error ", err.String())
+		fmt.Println("Fatal error ", err)
 		//os.Exit(1)
 	}
 }
@@ -334,7 +339,7 @@ func Getmd5(original string) []byte {
 	var h hash.Hash = md5.New()
 	h.Write([]byte(original))
 	//fmt.Printf("%x\n", h.Sum()) 
-	return h.Sum()
+	return h.Sum(nil)
 }
 
 func Getmd5_3(in string) string {
@@ -352,7 +357,7 @@ type ClosingBuffer struct {
 	*bytes.Buffer
 }
 
-func (cb *ClosingBuffer) Close() (err os.Error) {
+func (cb *ClosingBuffer) Close() (err error) {
 	//we don't actually have to do anything here, since the buffer is
 	//just some data in memory
 	//and the error is initialized to no-error
