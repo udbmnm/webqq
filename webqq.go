@@ -1,365 +1,154 @@
-// webQQ.go
 /*
- *quanql:本程序来自网络！
- *too many errors
- *------------------------
- *GO语言讨论群:102319854
- *GO语言官网:www.golang.org
- *作者: 不死爬虫
- *主页: http://www.gososo.org http://www.daohang361.com/news/index.html
- *见证的轨迹
- *乱码的解决方法
- *	1、dos执行chcp 65001 //修改代码页为utf-8，否则无法通过编译 
- *	2、修改dos窗口字体为Lucida Console，否则显示的字符为乱码 
- *	http://bbs.golang-china.org/viewtopic.php?f=4&t=8&start=10#p93
- *  chcp 命令:
- *  chcp 65001  就是换成UTF-8代码页，在命令行标题栏上点击右键，选择"属性"->"字体"，将字体修改为True Type字体"Lucida Console"，然后点击确定将属性应用到当前窗口
- *  chcp 936 可以换回默认的GBK
- *  chcp 437 是美国英语
+* 尝试新特性，或者尝试新语法
  */
 package main
 
 import (
-	"bufio"
-	"bytes"
-	"crypto/md5"
-	"encoding/hex"
-	"fmt"
-	"hash"
+	// "crypto/md5"
+	// "encoding/hex"
+	// "fmt"
+	// "hash"
 	"io/ioutil"
-	"net"
+	"log"
 	"net/http"
+	"net/url"
+	// "time"
+	// "net/http/cookiejar"
 	"os"
-	"regexp"
 	"strings"
 )
 
-var mcookies = make(map[string]*http.Cookie) //保存cookie
-var qq string
-var pass string
-var ptwebqq string               //cookie值登陆和后面用
-var skey string                  //cookie值登陆和后面用
-var clientid string = "63690451" //随机取
-var vfwebqq string               //第二次返回的参数
-var psessionid string            //第二次登陆返回的参数
-var refer string
+var (
+	QQ = "2690371552"
+
+// pass := "123456"
+// vc := "EKWJ"
+)
+
+var BaseHeader = map[string]string{
+	"Accept":          "*/*",
+	"Accept-Encoding": "gzip,deflate",
+	"Accept-Language": "zh-cn,zh;q=0.8,en-us;q=0.5,en;q=0.3",
+	"Connection":      "keep-alive",
+	"User-Agent":      "Mozilla/5.0 (Windows NT 6.1; WOW64; rv:20.0) Gecko/20100101 Firefox/20.0",
+}
 
 func main() {
-	fmt.Println("NOTE:(windows user)")
-	fmt.Println("If you run this First time,Please run 'chcp 65001' in then cmd ,then set front 'Lucida Console'")
-	fmt.Println("And run 'chcp 936 to back default'")
 
-	if len(os.Args) != 3 {
-		fmt.Println("Usage: ", os.Args[0], "QQnumber password")
-		in := bufio.NewReader(os.Stdin)
-		line, _ := in.ReadString('\n')
-		qq = strings.Split(line, " ")[0]
-		pass = strings.Split(line, " ")[1]
-		pass = strings.TrimSpace(pass)
-	} else {
-		qq = os.Args[1]
-		pass = os.Args[2]
-	}
+	log.SetFlags(log.Lshortfile)
+	//appid=1003903
 
-	fmt.Println("qq:" + qq + "passwd:" + pass)
-	refer = "http://web2-b.qq.com/proxy.html"
-	s := getUrl("http://ptlogin2.qq.com:80/check?appid=1003903&uin="+qq, refer)
-	var r = string(s[0:len(s)])
-	fmt.Println(r)
-	var checkType string = ""
-	re, _ := regexp.Compile("([^//']*)")
-	s2 := re.FindAllString(r, -1)
-	checkType = s2[3]
-	fmt.Println("checkType:" + checkType)
-	var checkcode string = ""
-checkImg:
-	if strings.Index(checkType, "!") == 0 {
-		fmt.Println("Not Need checkcode")
-		checkcode = checkType
-	} else {
-		fmt.Println("Need checkcode")
-		checkcode = getImg("http://captcha.qq.com:80/getimage?aid=1003903&uin="+qq+"&vc_type="+checkType, refer)
-	}
-	fmt.Println("checkcode:" + checkcode)
-	//接下来开始登陆了
-	//第1次登陆
-	loginUrl := "http://ptlogin2.qq.com:80/login?u=" + qq + "&" +
-		"p=" + GetCryPass(pass, checkcode) +
-		"&verifycode=" + checkcode + "&remember_uin=1&aid=1003903" +
-		"&u1=http%3A%2F%2Fweb2.qq.com%2Floginproxy.html%3Fstrong%3Dtrue" +
-		"&h=1&ptredirect=0&ptlang=2052&from_ui=1&pttype=1&dumy=&fp=loginerroralert"
-	rb := getUrl(loginUrl, refer)
-	var loginS string = string(rb[:])
-	fmt.Println(loginS)
-	if strings.Index(loginS, "成功") > 0 {
-		fmt.Println("第一次登陆成功!")
-	} else if strings.Index(loginS, "验证码有误") > 0 {
-		fmt.Println("验证码有误!重新获取验证码图片")
-		goto checkImg
-	} else if strings.Index(loginS, "密码有误") > 0 {
-		fmt.Println("密码有误!")
-		os.Exit(0)
-	} else {
-		fmt.Println("未知错误!")
-		os.Exit(0)
-	}
-	ptwebqq = mcookies["ptwebqq"].Value
-	skey = mcookies["skey"].Value
-	fmt.Println("skey:" + skey)
-	fmt.Println("ptwebqq:" + ptwebqq)
-
-	//再次登陆，只有这次登陆，才算真正登陆qq，这个时候，如果你qq已经登陆，会把你的qq踢下线，而且此次登陆才算上线
-	channelLoginUrl := "http://d.web2.qq.com:80/channel/login2"
-	content := "{\"status\":\"\",\"ptwebqq\":\"" + ptwebqq + "\",\"passwd_sig\":\"\",\"clientid\":\"" + clientid + "\"}"
-	content = urlEncode(content)                            //urlencode
-	content = "r=" + content                                //post的数据
-	res := PostUrl(channelLoginUrl, refer, []byte(content)) //post
-	re_twice := string(res[:])                              //第二次返回是个json格式,如下,我们要获取 psessionid vfwebqq值
-	/*
-		{"retcode":0,"result":{"uin":526868457,"cip":1987728778,"index":1075,"port":40831,"status":"online","vfwebqq":"6c47630a8cd98902d38d919420ffb019141ba7f
-		ebd6b8ce02b0b69d7b85e0ad2205c8f141a66f364","psessionid":"8368046764001d636f6e6e7365727665725f77656271714031302e3133342e362e31333800006023000005ee026e0
-		400e95f671f6d0000000a4058474d6430776c35476d000000286c47630a8cd98902d38d919420ffb019141ba7febd6b8ce02b0b69d7b85e0ad2205c8f141a66f364","user_state":0,"f
-		":0}}*/
-	fmt.Print(re_twice)
-	re, _ = regexp.Compile("(vfwebqq\":\")([^\"]*)(\")")
-	s2 = re.FindStringSubmatch(re_twice)
-	vfwebqq = s2[2]
-	re, _ = regexp.Compile("(psessionid\":\")([^\"]*)(\")")
-	s2 = re.FindStringSubmatch(re_twice)
-	psessionid = s2[2]
-	fmt.Println("psessionid:" + psessionid)
-	fmt.Println("vfwebqq:" + vfwebqq)
-	if len(vfwebqq) == 0 || len(psessionid) == 0 {
-		fmt.Println("登陆失败")
-		os.Exit(0)
-	}
-	//到此登陆成功  调用poll消息函数
-	poll()
-}
-
-func urlEncode(urlin string) string {
-	return http.URLEscape(urlin)
-}
-
-func poll() {
-	var pollUrl string = "http://d.web2.qq.com:80/channel/poll2?clientid=" + clientid + "&psessionid=" + psessionid
-	for {
-		fmt.Println("获取消息......................................")
-		fmt.Println("Loop Get Message ......................................")
-		s := getUrl(pollUrl, refer)
-		fmt.Println(string(s[:]))
-	}
-}
-
-/*
- *获取验证码图片,并且返回输入验证码
- */
-func getImg(urlin string, refer string) string {
-	imgByte := getUrl(urlin, refer)
-	fmt.Print("write img begin and the img length is:")
-	fmt.Println(len(imgByte))
-	err2 := ioutil.WriteFile("d:/aa.jpg", imgByte, 0)
-	if err2 != nil {
-		fmt.Println(err2)
-		return ""
-	}
-	fmt.Println("请打开文件:d:/aa.jpg 并输入验证码回车")
-	fmt.Println("Need CheckCode Open :d:/aa.jpp input CheckCode")
-	var line string
-	_, err := fmt.Scanln(&line)
+	resp, err := CheckVerifyCode()
 	if err != nil {
-		return ""
+		log.Println(err)
 	}
-	return line
+	code := GetVerifyCode(*resp)
+	log.Println(code)
+
 }
 
-/*
- *带cookie获取url
- */
-func getUrl(urlin string, refer string) []byte {
-	url, err := http.ParseURL(urlin)
-	checkError(err)
-	// build a TCP connection first
-	host := url.Host
-	conn, err := net.Dial("tcp", host)
-	checkError(err)
+func CheckVerifyCode() (*http.Response, error) {
+	log.Println("start func checkVC()")
+	v := url.Values{}
+	v.Add("uin", QQ)
+	v.Add("r", 0.12431234)
+	log.Println(v.Encode())
+	// url := "https://ssl.ptlogin2.qq.com/check?uin=357088531&appid=1003903&js_ver=10029&js_type=0&login_sig=f1ll0J3TOEMtw6nwmDO832a--xFelS-IMsbL8CGIBOHMWPhdak8IIlSD6USs0aMm&u1=http%3A%2F%2Fweb.qq.com%2Floginproxy.html&r=0.9890235673936297"
+	url := "https://ssl.ptlogin2.qq.com/check?uin=" + QQ // + "&r=0.9890235673936297"
 
-	// then wrap an HTTP client connection around it
-	clientConn := http.NewClientConn(conn, nil)
-	if clientConn == nil {
-		fmt.Println("Can't build connection")
-		os.Exit(1)
-	}
-	// define the additional HTTP header fields
-	header := map[string][]string{
-		"Accept":          {"text/html,application/xhtml+xml,application/xml;q=0.9,*/*,q=0.8"},
-		"Accept-Language": {"zh-cn,zh;q=0.5"},
-		"Accept-Charset":  {"UTF-8,utf-8;q=0.7,*;q=0.7"},
-		"Connection":      {"keep-alive"},
-		"Referer":         {refer},
-		"User-Agent":      {"Mozilla/5.0 (Windows NT 5.1; rv:5.0) Gecko/20100101 Firefox/5.0"},
-	}
-	// and build the request
-	request := http.Request{Method: "GET", URL: url, Header: header}
-
-	for _, value := range mcookies {
-		request.AddCookie(value)
-	}
-
-	dump, _ := http.DumpRequest(&request, false)
-	fmt.Println(string(dump))
-	// send the request
-	err = clientConn.Write(&request)
-	checkError(err)
-	// and get the response
-	response, err := clientConn.Read(&request)
-	checkError(err)
-	if response.Status != "200 OK" {
-		fmt.Println(response.Status)
-		os.Exit(2)
-	}
-	//Set-cookie
-	for i := 0; i < len(response.Cookies()); i++ {
-		mcookies[response.Cookies()[i].Name] = response.Cookies()[i]
-	}
-	const NBUF = 1
-	var buf = make([]byte, NBUF)
-	//http://code.google.com/p/golang-china/wiki/go_tutorial
-	reader := response.Body
-	result := make([]byte, 0)
-	//我们一个byte取可以有效避免数据覆盖的问题,不过与整块读取略微慢点，暂且这样写吧
-	for {
-		switch nr, _ := reader.Read(buf[:]); true {
-		case nr < 0:
-			goto a1
-			break
-		case nr == 0: // EOF              
-			goto a1
-			break
-		case nr > 0:
-			result = append(result, buf[0])
-		}
-	}
-a1:
-	return result[0:len(result)]
-}
-
-/*
- *带cookie post
- */
-func PostUrl(urlin string, refer string, sendBytes []byte) []byte {
-	url, err := http.ParseURL(urlin)
-	checkError(err)
-	// build a TCP connection first
-	host := url.Host
-	conn, err := net.Dial("tcp", host)
-	checkError(err)
-
-	// then wrap an HTTP client connection around it
-	clientConn := http.NewClientConn(conn, nil)
-	if clientConn == nil {
-		fmt.Println("Can't build connection")
-		os.Exit(1)
-	}
-	// define the additional HTTP header fields
-	header := map[string][]string{
-		"Accept":            {"text/html,application/xhtml+xml,application/xml;q=0.9,*/*,q=0.8"},
-		"Accept-Language":   {"zh-cn,zh;q=0.5"},
-		"Accept-Charset":    {"UTF-8,utf-8;q=0.7,*;q=0.7"},
-		"Content-Type":      {"application/x-www-form-urlencoded"},
-		"Connection":        {"keep-alive"},
-		"Transfer-Encoding": {"chunked"},
-		"Referer":           {refer},
-		"User-Agent":        {"Mozilla/5.0 (Windows NT 5.1; rv:5.0) Gecko/20100101 Firefox/5.0"},
-	}
-	// and build the request
-	request := http.Request{Method: "POST", URL: url, Header: header}
-	request.ContentLength = (int64)(len(sendBytes))
-	for _, value := range mcookies {
-		request.AddCookie(value)
-	}
-
-	request.Body = &ClosingBuffer{bytes.NewBuffer(sendBytes)}
-
-	dump, _ := http.DumpRequest(&request, false)
-	fmt.Println(string(dump))
-	// send the request
-	err = clientConn.Write(&request)
-	checkError(err)
-	// and get the response
-	response, err := clientConn.Read(&request)
-	checkError(err)
-	if response.Status != "200 OK" {
-		fmt.Println(response.Status)
-	}
-	//Set-cookie
-	for i := 0; i < len(response.Cookies()); i++ {
-		mcookies[response.Cookies()[i].Name] = response.Cookies()[i]
-	}
-	const NBUF = 1
-	var buf = make([]byte, NBUF)
-	//http://code.google.com/p/golang-china/wiki/go_tutorial
-	reader := response.Body
-	result := make([]byte, 0)
-	//我们一个byte取可以有效避免数据覆盖的问题,不过与整块读取略微慢点，暂且这样写吧
-	for {
-		switch nr, _ := reader.Read(buf[:]); true {
-		case nr < 0:
-			goto a2
-			break
-		case nr == 0: // EOF              
-			goto a2
-			break
-		case nr > 0:
-			result = append(result, buf[0])
-		}
-	}
-a2:
-	return result[0:len(result)]
-}
-
-func checkError(err error) {
+	client := &http.Client{}
+	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
-		fmt.Println("Fatal error ", err)
-		//os.Exit(1)
+		log.Println(err)
+	}
+
+	for key, value := range BaseHeader {
+		req.Header.Set(key, value)
+	}
+
+	// req.Header.Set("Cookie", "pgv_pvid=4335859410; pgv_info=pgvReferrer=&ssid=s3944121500; uikey=40ae17426019d961b53020d402710924fb62a93019e805af496463433c1069c2; chkuin=357088531")
+	// req.Header.Set("Host", "ui.ptlogin2.qq.com")
+	// req.Header.Set("Referer", "https://ui.ptlogin2.qq.com/cgi-bin/login?target=self&style=5&mibao_css=m_webqq&appid=1003903&enable_qlogin=0&no_verifyimg=1&s_url=http%3A%2F%2Fweb.qq.com%2Floginproxy.html&f_url=loginerroralert&strong_login=1&login_state=10&t=20130417001")
+
+	resp, err := client.Do(req)
+	if err != nil {
+		log.Println(err)
+	}
+	if resp.StatusCode == 200 {
+		// body, _ := ioutil.ReadAll(resp.Body)
+		// bodystr := string(body)
+		// log.Println(bodystr)
+	}
+	// log.Printf("\n%T %v\n", resp.Cookies(), resp.Cookies())
+	// for _, b := range resp.Cookies() {
+	//     log.Printf("%T  %v", b, b)
+	// }
+	return resp, nil
+}
+
+func GetVerifyCode(resp http.Response) string {
+	log.Println("start func GetVerifyCode")
+	defer resp.Body.Close()
+	body, _ := ioutil.ReadAll(resp.Body)
+	bodystr := string(body)
+	log.Println(bodystr)
+
+	//返回结果0，表示不需要输入验证码
+	ok := strings.Contains(strings.ToLower(bodystr), "ptui_checkvc('0'")
+	if ok {
+		substr := strings.Split(bodystr, "','")
+		return substr[1]
+	} else {
+		return getVCImg()
 	}
 }
 
-/*
- *webqq加密方式
- */
-func GetCryPass(pass string, code string) string {
-	cryPss_3 := Getmd5_3(pass)
-	cryPss_3 = strings.ToUpper(hex.EncodeToString([]byte(cryPss_3))) + strings.ToUpper(code)
-	r := Getmd5(cryPss_3)
-	return strings.ToUpper(hex.EncodeToString(r[0:len(r)]))
-}
+func getVCImg() string {
+	log.Println("start func getImg()")
+	file := "qq-verifycode.jpeg"
 
-func Getmd5(original string) []byte {
-	var h hash.Hash = md5.New()
-	h.Write([]byte(original))
-	//fmt.Printf("%x\n", h.Sum()) 
-	return h.Sum(nil)
-}
+	url := "https://ssl.captcha.qq.com/getimage?&uin=357088531&aid=1003903&r=0.08379581950067883"
+	// url := "https://ssl.ptlogin2.qq.com/check?uin=357088531"
 
-func Getmd5_3(in string) string {
-	cry := Getmd5(in)
-	var r string = string(cry[0:len(cry)])
-	cry = Getmd5(r)
-	r = string(cry[0:len(cry)])
-	cry = Getmd5(r)
-	r = string(cry[0:len(cry)])
-	return r
-}
+	client := &http.Client{}
+	req, err := http.NewRequest("GET", url, nil)
+	if err != nil {
+		log.Println(err)
+	}
 
-//实现io.ReadCloser接口
-type ClosingBuffer struct {
-	*bytes.Buffer
-}
+	req.Header.Set("Accept", "*/*")
+	req.Header.Set("Accept-Encoding", "gzip,deflate")
+	req.Header.Set("Accept-Language", "zh-cn,zh;q=0.8,en-us;q=0.5,en;q=0.3")
+	req.Header.Set("Connection", "keep-alive")
+	req.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 6.1; WOW64; rv:20.0) Gecko/20100101 Firefox/20.0")
 
-func (cb *ClosingBuffer) Close() (err error) {
-	//we don't actually have to do anything here, since the buffer is
-	//just some data in memory
-	//and the error is initialized to no-error
-	return
+	req.Header.Set("Cookie", "pgv_pvid=4335859410; pgv_info=pgvReferrer=&ssid=s3944121500; ptisp=ctc; verifysession=h00d963252d82920a46ba445ab48cc6e1044b68058ef89cc93d8c1539245e735b9e0ee01ee9304cbaf1a38a18c58bdba11c; ptui_loginuin=357088531")
+	req.Header.Set("Host", "ssl.captcha.qq.com")
+	req.Header.Set("Referer", "https://ui.ptlogin2.qq.com/cgi-bin/login?target=self&style=5&mibao_css=m_webqq&appid=1003903&enable_qlogin=0&no_verifyimg=1&s_url=http%3A%2F%2Fweb.qq.com%2Floginproxy.html&f_url=loginerroralert&strong_login=1&login_state=10&t=20130417001")
+
+	resp, err := client.Do(req)
+	if err != nil {
+		log.Println(err)
+	}
+
+	log.Println(resp.StatusCode) //200
+	log.Println(resp.Status)     //200 OK
+	log.Println(resp.Body)       //pointer
+
+	if resp.StatusCode == 200 {
+		body, _ := ioutil.ReadAll(resp.Body)
+		fout, err := os.Create(file)
+		if err != nil {
+			log.Println("err:", err)
+		}
+
+		fout.Write(body)
+		// log.Println(body)
+		defer func() {
+			resp.Body.Close()
+			fout.Close()
+		}()
+
+	}
+	return ""
 }
