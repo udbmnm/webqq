@@ -1,6 +1,8 @@
-/*
-* 尝试新特性，或者尝试新语法
- */
+// 作者: 权芹乐
+// 文件: webqq.go
+// 日期：2013-5-3
+// 描述: implement multiple QQs to login.
+// go版本: go1.1.0
 package main
 
 import (
@@ -20,9 +22,8 @@ import (
 
 var (
 	QQ = "2690371552"
-
-// pass := "123456"
-// vc := "EKWJ"
+	// pass = "123456"
+	// vc   = "EKWJ"
 )
 
 var BaseHeader = map[string]string{
@@ -162,5 +163,7 @@ func getVCImg() string {
 		}()
 
 	}
-	return ""
+	var code string
+	fmt.Sprintln(code)
+	return code
 }
