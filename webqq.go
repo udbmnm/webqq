@@ -6,7 +6,7 @@ package main
 import (
 	// "crypto/md5"
 	// "encoding/hex"
-	// "fmt"
+	"fmt"
 	// "hash"
 	"io/ioutil"
 	"log"
@@ -49,15 +49,21 @@ func main() {
 
 func CheckVerifyCode() (*http.Response, error) {
 	log.Println("start func checkVC()")
-	v := url.Values{}
-	v.Add("uin", QQ)
-	v.Add("r", 0.12431234)
-	log.Println(v.Encode())
+
+	//
 	// url := "https://ssl.ptlogin2.qq.com/check?uin=357088531&appid=1003903&js_ver=10029&js_type=0&login_sig=f1ll0J3TOEMtw6nwmDO832a--xFelS-IMsbL8CGIBOHMWPhdak8IIlSD6USs0aMm&u1=http%3A%2F%2Fweb.qq.com%2Floginproxy.html&r=0.9890235673936297"
-	url := "https://ssl.ptlogin2.qq.com/check?uin=" + QQ // + "&r=0.9890235673936297"
+	u, err := url.Parse("https://ssl.ptlogin2.qq.com/check")
+	if err != nil {
+		return nil, err
+	}
+	v := url.Values{}
+	v.Set("uin", QQ)
+	v.Set("r", fmt.Sprintf("%f", 0.9890235673936297))
+	u.RawQuery = v.Encode()
+	log.Println(u)
 
 	client := &http.Client{}
-	req, err := http.NewRequest("GET", url, nil)
+	req, err := http.NewRequest("GET", u.String(), nil)
 	if err != nil {
 		log.Println(err)
 	}
@@ -87,7 +93,7 @@ func CheckVerifyCode() (*http.Response, error) {
 }
 
 func GetVerifyCode(resp http.Response) string {
-	log.Println("start func GetVerifyCode")
+	log.Println("start func GetVerifyCode()")
 	defer resp.Body.Close()
 	body, _ := ioutil.ReadAll(resp.Body)
 	bodystr := string(body)
@@ -107,24 +113,30 @@ func getVCImg() string {
 	log.Println("start func getImg()")
 	file := "qq-verifycode.jpeg"
 
-	url := "https://ssl.captcha.qq.com/getimage?&uin=357088531&aid=1003903&r=0.08379581950067883"
-	// url := "https://ssl.ptlogin2.qq.com/check?uin=357088531"
+	u, err := url.Parse("https://ssl.captcha.qq.com/getimage")
+	if err != nil {
+		return err.Error()
+	}
+	v := url.Values{}
+	v.Set("uin", QQ)
+	v.Set("aid", "1003903")
+	v.Set("r", fmt.Sprintf("%f", 0.9890235673936297))
+	u.RawQuery = v.Encode()
+	log.Println(u)
 
 	client := &http.Client{}
-	req, err := http.NewRequest("GET", url, nil)
+	req, err := http.NewRequest("GET", u.String(), nil)
 	if err != nil {
-		log.Println(err)
+		return err.Error()
 	}
 
-	req.Header.Set("Accept", "*/*")
-	req.Header.Set("Accept-Encoding", "gzip,deflate")
-	req.Header.Set("Accept-Language", "zh-cn,zh;q=0.8,en-us;q=0.5,en;q=0.3")
-	req.Header.Set("Connection", "keep-alive")
-	req.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 6.1; WOW64; rv:20.0) Gecko/20100101 Firefox/20.0")
+	for key, value := range BaseHeader {
+		req.Header.Set(key, value)
+	}
 
-	req.Header.Set("Cookie", "pgv_pvid=4335859410; pgv_info=pgvReferrer=&ssid=s3944121500; ptisp=ctc; verifysession=h00d963252d82920a46ba445ab48cc6e1044b68058ef89cc93d8c1539245e735b9e0ee01ee9304cbaf1a38a18c58bdba11c; ptui_loginuin=357088531")
-	req.Header.Set("Host", "ssl.captcha.qq.com")
-	req.Header.Set("Referer", "https://ui.ptlogin2.qq.com/cgi-bin/login?target=self&style=5&mibao_css=m_webqq&appid=1003903&enable_qlogin=0&no_verifyimg=1&s_url=http%3A%2F%2Fweb.qq.com%2Floginproxy.html&f_url=loginerroralert&strong_login=1&login_state=10&t=20130417001")
+	// req.Header.Set("Cookie", "pgv_pvid=4335859410; pgv_info=pgvReferrer=&ssid=s3944121500; ptisp=ctc; verifysession=h00d963252d82920a46ba445ab48cc6e1044b68058ef89cc93d8c1539245e735b9e0ee01ee9304cbaf1a38a18c58bdba11c; ptui_loginuin=357088531")
+	// req.Header.Set("Host", "ssl.captcha.qq.com")
+	// req.Header.Set("Referer", "https://ui.ptlogin2.qq.com/cgi-bin/login?target=self&style=5&mibao_css=m_webqq&appid=1003903&enable_qlogin=0&no_verifyimg=1&s_url=http%3A%2F%2Fweb.qq.com%2Floginproxy.html&f_url=loginerroralert&strong_login=1&login_state=10&t=20130417001")
 
 	resp, err := client.Do(req)
 	if err != nil {
